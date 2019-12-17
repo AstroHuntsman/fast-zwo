@@ -6,6 +6,7 @@ import numpy as np
 
 from astropy import units as u
 
+
 class ASICamera:
     """ZWO ASI Camera class."""
 
@@ -43,6 +44,9 @@ class ASICamera:
         self._image_buffer = self._image_array(width=self._info['max_width'].value,
                                                height=self._info['max_height'].value,
                                                image_type="RAW16")
+
+        self.set_roi_format(
+            self._camera_ID, self._info['max_width'], self._info['max_height'], 1, 'RAW16')
 
     def get_camera_property(self, camera_index):
         """ Get properties of the camera with given index """
@@ -87,6 +91,20 @@ class ASICamera:
                             self._camera_ID,
                             ctypes.byref(n_dropped_frames))
         return n_dropped_frames
+
+    def set_roi_format(self, camera_ID, width, height, binning, image_type):
+        """ Set the ROI size and image format settings for the camera with given integer ID """
+        width = int(get_quantity_value(width, unit=u.pixel))
+        height = int(get_quantity_value(height, unit=u.pixel))
+        binning = int(binning)
+        self._call_function('ASISetROIFormat',
+                            camera_ID,
+                            ctypes.c_int(width),
+                            ctypes.c_int(height),
+                            ctypes.c_int(binning),
+                            ctypes.c_int(ImgType[image_type]))
+        self.logger.debug("Set ROI, format on camera {} to {}x{}/{}, {}".format(
+            camera_ID, width, height, binning, image_type))
 
     def _call_function(self, function_name, camera_ID, *args):
         """ Utility function for calling the SDK functions that return ErrorCode """
