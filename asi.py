@@ -94,8 +94,8 @@ class ASICamera:
 
     def set_roi_format(self, camera_ID, width, height, binning, image_type):
         """ Set the ROI size and image format settings for the camera with given integer ID """
-        width = int(get_quantity_value(width, unit=u.pixel))
-        height = int(get_quantity_value(height, unit=u.pixel))
+        width = int(width.value)
+        height = int(height.value)
         binning = int(binning)
         self._call_function('ASISetROIFormat',
                             camera_ID,
@@ -103,8 +103,6 @@ class ASICamera:
                             ctypes.c_int(height),
                             ctypes.c_int(binning),
                             ctypes.c_int(ImgType[image_type]))
-        self.logger.debug("Set ROI, format on camera {} to {}x{}/{}, {}".format(
-            camera_ID, width, height, binning, image_type))
 
     def _call_function(self, function_name, camera_ID, *args):
         """ Utility function for calling the SDK functions that return ErrorCode """
