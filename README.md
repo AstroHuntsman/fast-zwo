@@ -18,7 +18,9 @@ Go to where you want to run it:
 
 Copy `asi.py` and `mq_obs_run.py` to that location.
 
-Edit parameters in: `mq_obs_run.py`
+Edit parameters:
+`max_files=3, max_bytes=50e6, exptime=0.005 * u.second, gain=300.`
+at the very end of: `mq_obs_run.py`
 
 Run it:
 
