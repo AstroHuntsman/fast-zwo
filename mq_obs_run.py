@@ -10,10 +10,7 @@ import numpy as np
 from os import path
 
 
-def frame_rate_test(camera, max_bytes=500e6, output_fits_name='out.fits'):
-    if path.exists(output_fits_name):
-        print(f'fits file already exists: {output_fits_name}\n EXITING')
-        return
+def frame_rate_test(camera, max_files=2, max_bytes=500e6):
 
     bits_per_pixel = 16  # bits
     dimen_y = 5496
@@ -22,45 +19,53 @@ def frame_rate_test(camera, max_bytes=500e6, output_fits_name='out.fits'):
     total_memory_bits = bits_per_pixel * total_pixels
     total_memory_bytes = total_memory_bits / 8.
 
-    start_time = time.monotonic()
     camera.start_video_capture()
 
-    image_data_list = []
-
-    count = 0
-
     try:
-        while True:
-            image = camera.get_video_data()
-            image_data_list.append(image)
 
-            count += 1
+        for i in range(0, max_files):
+            output_fits_name = f'out_{i}.fits'
+            if path.exists(output_fits_name):
+                print(f'fits file already exists: {output_fits_name}\n EXITING')
+                return
+            start_time = time.monotonic()
+            count = 0
+            image_data_list = []
 
-            if count * total_memory_bytes > max_bytes:
-                break
+            while True:
+                image = camera.get_video_data()
+                image_data_list.append(image)
 
-            if count % 200 == 0:
-                end_time = time.monotonic()
-                fps = count / (end_time - start_time)
-                msg = "Got {} frames in {} seconds ({} fps).".format(
-                    count, (end_time - start_time), fps)
-                print(msg)
+                count += 1
+
+                if count * total_memory_bytes > max_bytes:
+                    break
+
+                if count % 200 == 0:
+                    end_time = time.monotonic()
+                    fps = count / (end_time - start_time)
+                    msg = "Got {} frames in {} seconds ({} fps).".format(
+                        count, (end_time - start_time), fps)
+                    print(msg)
+            end_time = time.monotonic()
+
+            fps = count / (end_time - start_time)
+            msg = "Got {} frames in {} seconds ({} fps).".format(
+                count, (end_time - start_time), fps)
+            print(msg)
+
+            print(f'Writing to file now: {output_fits_name}')
+            write_start_time = time.monotonic()
+            image_data_array = np.array(image_data_list)
+            hdu = fits.PrimaryHDU(image_data_array)
+            hdu.writeto(output_fits_name)
+            write_end_time = time.monotonic()
+            msg = f"Took {write_end_time - write_start_time} seconds to write out a {(total_memory_bytes * count) / 1e9} Gigabyte file: {output_fits_name}"
+            print(msg)
 
     except KeyboardInterrupt:
         print('Cancelled run')
-    end_time = time.monotonic()
     camera.stop_video_capture()
-    fps = count / (end_time - start_time)
-    msg = "Got {} frames in {} seconds ({} fps).".format(count, (end_time - start_time), fps)
-    print(msg)
-
-    write_start_time = time.monotonic()
-    image_data_array = np.array(image_data_list)
-    hdu = fits.PrimaryHDU(image_data_array)
-    hdu.writeto(output_fits_name)
-    write_end_time = time.monotonic()
-    msg = f"Took {write_end_time - write_start_time} seconds to write out a {(total_memory_bytes * count) / 1e9} Gigabyte file"
-    print(msg)
 
 
 if __name__ == '__main__':
@@ -68,4 +73,4 @@ if __name__ == '__main__':
                        exptime=0.005 * u.second,
                        gain=300.)
     print("Collect data at MQ Observatory:")
-    frame_rate_test(camera, max_bytes=10000e6, output_fits_name='out.fits')
+    frame_rate_test(camera,  max_files=3, max_bytes=50e6)
