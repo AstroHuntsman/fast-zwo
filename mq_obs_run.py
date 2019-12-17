@@ -3,6 +3,7 @@ import time
 from asi import ASICamera
 
 from astropy.io import fits
+import astropy.units as u
 
 import numpy as np
 
@@ -20,7 +21,6 @@ def frame_rate_test(camera, max_bytes=500e6, output_fits_name='out.fits'):
     total_pixels = dimen_y * dimen_x
     total_memory_bits = bits_per_pixel * total_pixels
     total_memory_bytes = total_memory_bits / 8.
-    # print(total_memory_bytes)
 
     start_time = time.monotonic()
     camera.start_video_capture()
@@ -39,7 +39,7 @@ def frame_rate_test(camera, max_bytes=500e6, output_fits_name='out.fits'):
             if count * total_memory_bytes > max_bytes:
                 break
 
-            if count % 1000 == 0:
+            if count % 200 == 0:
                 end_time = time.monotonic()
                 fps = count / (end_time - start_time)
                 msg = "Got {} frames in {} seconds ({} fps).".format(
@@ -64,6 +64,8 @@ def frame_rate_test(camera, max_bytes=500e6, output_fits_name='out.fits'):
 
 
 if __name__ == '__main__':
-    camera = ASICamera(library_path='/Applications/ASICAP.app/Contents/MacOS/libASICamera2.dylib')
+    camera = ASICamera(library_path='/Applications/ASICAP.app/Contents/MacOS/libASICamera2.dylib',
+                       exptime=0.005 * u.second,
+                       gain=300.)
     print("Collect data at MQ Observatory:")
-    frame_rate_test(camera, max_bytes=5000e6, output_fits_name='out.fits')
+    frame_rate_test(camera, max_bytes=10000e6, output_fits_name='out.fits')

@@ -10,7 +10,7 @@ from astropy import units as u
 class ASICamera:
     """ZWO ASI Camera class."""
 
-    def __init__(self, library_path, camera_index=0):
+    def __init__(self, library_path, exptime=0.005 * u.second, gain=300, camera_index=0):
         self._CDLL = ctypes.CDLL(library_path)
 
         n_cameras = self._CDLL.ASIGetNumOfConnectedCameras()
@@ -28,6 +28,12 @@ class ASICamera:
 
         self._info = self.get_camera_property(self._camera_index)
         self._camera_ID = self._info['camera_ID']
+        self._handle = self._info['camera_ID']
+
+        self.open_camera(self._handle)
+        self.init_camera(self._handle)
+
+        self._control_info = self.get_control_caps(self._camera_ID)
 
         error_code = self._CDLL.ASIOpenCamera(self._camera_ID)
         if error_code != ErrorCode.SUCCESS:
@@ -48,6 +54,11 @@ class ASICamera:
         self.set_roi_format(
             self._camera_ID, self._info['max_width'], self._info['max_height'], 1, 'RAW16')
 
+        self._control_setter('COOLER_ON', True)
+        self._control_setter('TARGET_TEMP', -40 * u.Celsius)
+        self._control_setter('GAIN', gain)
+        self._control_setter('EXPOSURE', exptime)
+
     def get_camera_property(self, camera_index):
         """ Get properties of the camera with given index """
         camera_info = CameraInfo()
@@ -59,6 +70,21 @@ class ASICamera:
 
         pythonic_info = self._parse_info(camera_info)
         return pythonic_info
+
+    def open_camera(self, camera_ID):
+        """ Open camera with given integer ID """
+        self._call_function('ASIOpenCamera', camera_ID)
+        print("Opened camera {}".format(camera_ID))
+
+    def init_camera(self, camera_ID):
+        """ Initialise camera with given integer ID """
+        self._call_function('ASIInitCamera', camera_ID)
+        print("Initialised camera {}".format(camera_ID))
+
+    def close_camera(self, camera_ID):
+        """ Close camera with given integer ID """
+        self._call_function('ASICloseCamera', camera_ID)
+        print("Closed camera {}".format(camera_ID))
 
     def start_video_capture(self):
         """ Start video capture mode on camera with given integer ID """
@@ -103,6 +129,70 @@ class ASICamera:
                             ctypes.c_int(height),
                             ctypes.c_int(binning),
                             ctypes.c_int(ImgType[image_type]))
+
+    def get_num_of_controls(self, camera_ID):
+        """ Gets the number of control types supported by the camera with given integer ID """
+        n_controls = ctypes.c_int()
+        self._call_function('ASIGetNumOfControls', camera_ID, ctypes.byref(n_controls))
+        n_controls = n_controls.value  # Convert from ctypes c_int type to Python int
+        print("Camera {} has {} controls".format(camera_ID, n_controls))
+        return n_controls
+
+    def get_control_caps(self, camera_ID):
+        """ Gets the details of all the controls supported by the camera with given integer ID """
+        n_controls = self.get_num_of_controls(camera_ID)  # First get number of controls
+        controls = {}
+        for i in range(n_controls):
+            control_caps = ControlCaps()
+            self._call_function('ASIGetControlCaps',
+                                camera_ID,
+                                ctypes.c_int(i),
+                                ctypes.byref(control_caps))
+            control = self._parse_caps(control_caps)
+            controls[control['control_type']] = control
+        print("Got details of {} controls from camera {}".format(n_controls, camera_ID))
+        return controls
+
+    def get_control_value(self, camera_ID, control_type):
+        """ Gets the value of the control control_type from camera with given integer ID """
+        value = ctypes.c_long()
+        is_auto = ctypes.c_int()
+        self._call_function('ASIGetControlValue',
+                            camera_ID,
+                            ControlType[control_type],
+                            ctypes.byref(value),
+                            ctypes.byref(is_auto))
+        nice_value = self._parse_return_value(value, control_type)
+        return nice_value, bool(is_auto)
+
+    def _control_setter(self, control_type, value):
+        if control_type not in self._control_info:
+            raise error.NotSupported("{} has no '{}' parameter".format(self.model, control_type))
+
+        control_name = self._control_info[control_type]['name']
+        if not self._control_info[control_type]['is_writable']:
+            raise error.NotSupported("{} cannot set {} parameter'".format(
+                self.model, control_name))
+
+        if value != 'AUTO':
+            # Check limits.
+            max_value = self._control_info[control_type]['max_value']
+            if value > max_value:
+                msg = "Cannot set {} to {}, clipping to max value {}".format(
+                    control_name, value, max_value)
+                Camera._driver.set_control_value(self._handle, control_type, max_value)
+                raise error.IllegalValue(msg)
+
+            min_value = self._control_info[control_type]['min_value']
+            if value < min_value:
+                msg = "Cannot set {} to {}, clipping to min value {}".format(
+                    control_name, value, min_value)
+                Camera._driver.set_control_value(self._handle, control_type, min_value)
+                raise error.IllegalValue(msg)
+        else:
+            if not self._control_info[control_type]['is_auto_supported']:
+                msg = "{} cannot set {} to AUTO".format(self.model, control_name)
+                raise error.IllegalValue(msg)
 
     def _call_function(self, function_name, camera_ID, *args):
         """ Utility function for calling the SDK functions that return ErrorCode """
