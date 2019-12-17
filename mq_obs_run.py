@@ -24,9 +24,9 @@ def frame_rate_test(camera, max_files=2, max_bytes=500e6):
     try:
 
         for i in range(0, max_files):
-            output_fits_name = f'out_{i}.fits'
-            if path.exists(output_fits_name):
-                print(f'fits file already exists: {output_fits_name}\n EXITING')
+            output_name = f'out_{i}.npy'
+            if path.exists(output_name):
+                print(f'Output file already exists: {output_name}\n EXITING')
                 return
             start_time = time.monotonic()
             count = 0
@@ -54,13 +54,11 @@ def frame_rate_test(camera, max_files=2, max_bytes=500e6):
                 count, (end_time - start_time), fps)
             print(msg)
 
-            print(f'Writing to file now: {output_fits_name}')
+            print(f'Writing to file now: {output_name}')
             write_start_time = time.monotonic()
-            image_data_array = np.array(image_data_list)
-            hdu = fits.PrimaryHDU(image_data_array)
-            hdu.writeto(output_fits_name)
+            np.save(output_name, image_data_list)
             write_end_time = time.monotonic()
-            msg = f"Took {write_end_time - write_start_time} seconds to write out a {(total_memory_bytes * count) / 1e9} Gigabyte file: {output_fits_name}"
+            msg = f"Took {write_end_time - write_start_time} seconds to write out a {(total_memory_bytes * count) / 1e9} Gigabyte file: {output_name}"
             print(msg)
 
     except KeyboardInterrupt:
@@ -73,4 +71,4 @@ if __name__ == '__main__':
                        exptime=0.005 * u.second,
                        gain=300.)
     print("Collect data at MQ Observatory:")
-    frame_rate_test(camera,  max_files=3, max_bytes=50e6)
+    frame_rate_test(camera, max_files=3, max_bytes=5000e6)

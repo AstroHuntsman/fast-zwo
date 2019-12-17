@@ -26,3 +26,7 @@ Run it:
 
 `python mq_obs_run.py`
 
+To stop running, wait until the specified # of files are created or do: Ctrl+C
+
+
+
